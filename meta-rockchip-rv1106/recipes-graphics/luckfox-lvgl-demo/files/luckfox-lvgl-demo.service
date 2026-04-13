@@ -1,0 +1,12 @@
+[Unit]
+Description=Luckfox Pico LVGL framebuffer demo
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/luckfox-lvgl-demo
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
