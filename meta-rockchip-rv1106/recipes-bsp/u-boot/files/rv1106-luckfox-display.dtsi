@@ -1,0 +1,100 @@
+/*
+ * Display overlay for Luckfox Pico Ultra W — 720x720 RGB LCD
+ * Included from rv1106-evb.dts during U-Boot build
+ */
+
+/ {
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		drm_logo: drm-logo@00000000 {
+			compatible = "rockchip,drm-logo";
+			reg = <0x0 0x0>;
+		};
+	};
+
+	backlight: backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm1 0 100000 50000>;
+		brightness-levels = <0 255>;
+		default-brightness-level = <1>;
+		status = "okay";
+	};
+
+	panel: panel {
+		compatible = "simple-panel";
+		status = "okay";
+		backlight = <&backlight>;
+		bus-format = <0x1009>; /* MEDIA_BUS_FMT_RGB666_1X18 */
+		width-mm = <85>;
+		height-mm = <85>;
+
+		display-timings {
+			native-mode = <&timing0>;
+
+			timing0: timing0 {
+				clock-frequency = <30000000>;
+				hactive = <720>;
+				vactive = <720>;
+				hback-porch = <44>;
+				hfront-porch = <46>;
+				vback-porch = <18>;
+				vfront-porch = <16>;
+				hsync-len = <2>;
+				vsync-len = <2>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <0>;
+				pixelclk-active = <0>;
+			};
+		};
+
+		port {
+			panel_in_rgb: endpoint {
+				remote-endpoint = <&rgb_out_panel>;
+			};
+		};
+	};
+};
+
+&display_subsystem {
+	status = "okay";
+	logo-memory-region = <&drm_logo>;
+};
+
+&vop {
+	status = "okay";
+	u-boot,dm-pre-reloc;
+};
+
+&rgb {
+	status = "okay";
+	u-boot,dm-pre-reloc;
+	pinctrl-names = "default";
+	pinctrl-0 = <&lcd_pins>;
+
+	ports {
+		rgb_out: port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rgb_out_panel: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&panel_in_rgb>;
+			};
+		};
+	};
+};
+
+&rgb_in_vop {
+	status = "okay";
+};
+
+&pwm1 {
+	status = "okay";
+	pinctrl-names = "active";
+	pinctrl-0 = <&pwm1m2_pins>;
+};
