@@ -1,0 +1,20 @@
+[Unit]
+Description=Attach Luckfox AIC8800DC Bluetooth HCI (UART1 -> hci0)
+# The AIC8800DC driver exposes BT over UART1 (serial1 -> /dev/ttyS1)
+# at 1.5 Mbaud. We need the wifi side (aic8800_fdrv) loaded first
+# because the chip's firmware lives there and the BT side won't
+# answer HCI commands until WiFi side init has pushed the firmware.
+After=systemd-modules-load.service multi-user.target
+Requires=systemd-modules-load.service
+ConditionPathExists=/dev/ttyS1
+
+[Service]
+Type=forking
+ExecStartPre=/bin/sh -c 'for i in 1 2 3 4 5 6 7 8; do lsmod | grep -q aic8800_fdrv && exit 0; sleep 1; done; exit 1'
+ExecStart=/usr/bin/hciattach -s 1500000 /dev/ttyS1 any 1500000 flow nosleep
+ExecStartPost=/bin/sh -c 'for i in 1 2 3 4 5; do hciconfig hci0 up 2>/dev/null && exit 0; sleep 1; done; exit 0'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

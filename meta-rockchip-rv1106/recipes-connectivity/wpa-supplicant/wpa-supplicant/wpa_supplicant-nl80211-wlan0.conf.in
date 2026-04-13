@@ -1,0 +1,21 @@
+# wpa_supplicant config for wlan0 — template, baked at build time.
+#
+# Credentials come from the Yocto build variables LUCKFOX_WIFI_SSID
+# and LUCKFOX_WIFI_PSK (set those in conf/local.conf on the build
+# host). If either variable is unset, do_install leaves this file
+# as-is and prints a warning. In that case the user can still
+# populate /etc/wpa_supplicant/wpa_supplicant-nl80211-wlan0.conf
+# manually after flashing.
+#
+# The @@PLACEHOLDER@@ tokens are sed-replaced by the bbappend.
+
+ctrl_interface=/var/run/wpa_supplicant
+update_config=1
+country=@@LUCKFOX_WIFI_COUNTRY@@
+
+network={
+    ssid="@@LUCKFOX_WIFI_SSID@@"
+    psk="@@LUCKFOX_WIFI_PSK@@"
+    key_mgmt=WPA-PSK
+    scan_ssid=1
+}

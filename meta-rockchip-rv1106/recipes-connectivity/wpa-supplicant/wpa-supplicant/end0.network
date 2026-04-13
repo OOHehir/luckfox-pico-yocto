@@ -1,0 +1,10 @@
+# systemd-networkd configuration for the on-SoC Ethernet port (end0).
+# Grab a v4 lease via DHCP when a cable is plugged in.
+
+[Match]
+Name=end0
+
+[Network]
+DHCP=ipv4
+IPv6AcceptRA=no
+LinkLocalAddressing=no

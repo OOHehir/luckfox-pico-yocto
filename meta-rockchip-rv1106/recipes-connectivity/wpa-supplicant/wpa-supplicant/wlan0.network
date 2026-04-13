@@ -1,0 +1,14 @@
+# systemd-networkd configuration for wlan0.
+#
+# Picks up the link once wpa_supplicant-nl80211@wlan0.service
+# associates, then grabs an IPv4 lease via DHCP. IPv6 disabled
+# because the upstream router this is typically deployed behind
+# doesn't have a working SLAAC setup.
+
+[Match]
+Name=wlan0
+
+[Network]
+DHCP=ipv4
+IPv6AcceptRA=no
+LinkLocalAddressing=no
