@@ -181,35 +181,24 @@ bitbake luckfox-image-minimal
 
 Output: `build/tmp-glibc/deploy/images/luckfox-pico-ultra-w/`
 
-## Flashing - Option A (U-Boot TFTP + mmc write)
+## Flashing a source build
 
-Requires a TFTP server on the local network and board Ethernet connected.
+Same recipe as [Flash the prebuilt image](#flash-the-prebuilt-image-no-build-required) above, just point `rkdeveloptool` at the WIC your build produced:
 
 ```bash
-# Split WIC into 60MB chunks
+# Put the board in maskrom mode: short SARADC_IN0 to GND at power-on,
+# or hold the BOOT button (if your carrier exposes one) while plugging
+# in USB. `rkdeveloptool ld` should then report "DevNo=1 Maskrom".
+
 WIC=build/tmp-glibc/deploy/images/luckfox-pico-ultra-w/luckfox-image-minimal-luckfox-pico-ultra-w.rootfs.wic
-split -b 60M $WIC wic_part_
 
-# Upload chunks to TFTP server, then from U-Boot prompt (Ctrl+C to interrupt):
-setenv ipaddr 192.168.178.200
-setenv serverip 192.168.178.100
-setenv netmask 255.255.255.0
-mmc dev 0
-
-tftp 0x8000 wic_part_aa && mmc write 0x8000 0x0 0x1e000
-tftp 0x8000 wic_part_ab && mmc write 0x8000 0x1e000 0x1e000
-tftp 0x8000 wic_part_ac && mmc write 0x8000 0x3c000 0x1e000
-tftp 0x8000 wic_part_ad && mmc write 0x8000 0x5a000 0x1e000
-tftp 0x8000 wic_part_ae && mmc write 0x8000 0x78000 0x17800
-reset
+rkdeveloptool ld                              # confirm maskrom
+rkdeveloptool db rk1106_ddr_924MHz_v1.09.bin  # DDR init, from rkbin
+rkdeveloptool wl 0 ${WIC}                     # write whole WIC to sector 0
+rkdeveloptool rd                              # reset the board
 ```
-## Flashing - Option B (gatecmd running as MCP)
 
-- A running version of https://github.com/OOHehir/gatecmd
-  Available outside VM at 192.168.178.113:9222
-  Auth token configured in `.mcp.json` (gitignored)
-- /media/shared is a shared folder that can be accessed by this MCP
-- The idea is to save the images to this location & get the MCP to flash them outside the VM
+`rk1106_ddr_924MHz_v1.09.bin` is the DDR init blob shipped by [rockchip-linux/rkbin](https://github.com/rockchip-linux/rkbin) under `bin/rv11/`. rkdeveloptool itself is available at [rockchip-linux/rkdeveloptool](https://github.com/rockchip-linux/rkdeveloptool) or as `rkdeveloptool` in many Linux distros. The whole flash takes ~20 seconds for the 287 MB WIC on a reasonable USB 2.0 link.
 
 ## Boot Chain
 
