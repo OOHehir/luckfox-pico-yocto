@@ -139,14 +139,8 @@ curl -L -o ${WIC}.gz \
 gunzip ${WIC}.gz
 ```
 
-**Flash to an SD card** (swap `/dev/sdX` for your card — double-check with
-`lsblk`):
-
-```bash
-sudo dd if=${WIC} of=/dev/sdX bs=4M conv=fsync status=progress
-```
-
-**Flash to eMMC over USB** using `rkdeveloptool` (board in maskrom mode):
+The Pico Ultra W has no SD slot, so flashing is over USB to the onboard
+eMMC using `rkdeveloptool` with the board in maskrom mode:
 
 ```bash
 # Put board in maskrom: short SARADC_IN0 to GND at power-on.
