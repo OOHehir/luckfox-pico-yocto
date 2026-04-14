@@ -116,14 +116,16 @@ rknn_demo          # Run BlazeFace detection at 332 FPS
 
 ## Layer Structure
 
+This repo ships a single self-contained Yocto layer:
+
 ```
-meta-rockchip-rv1106/           SoC vendor layer (kernel, U-Boot, rkbin, RKNN, WiFi)
-meta-luckfox-bsp/         [1]   Machine configs, WKS partition layouts
-meta-luckfox-distro/      [1]   Distro policy, image recipes, packagegroups
-sources/poky/             [1]   Yocto scarthgap
+meta-rockchip-rv1106/     SoC vendor layer — kernel, U-Boot, rkbin, machine
+                          config, WIC layout, image recipe, RKNN runtime,
+                          AIC8800DC WiFi/BT, webserver, LVGL demo.
 ```
 
-[1] Shared with the RK3506 project at `/home/claude/projects/luckfox-yocto`
+The only dependency is `core` (poky). Clone poky (scarthgap branch)
+alongside this repo to build.
 
 ## Flash the prebuilt image (no build required)
 
@@ -163,8 +165,23 @@ after first boot, or rebuild from source with `LUCKFOX_WIFI_*` set in
 ## Build from source
 
 ```bash
-cd /home/claude/projects/luckfox-pico-yocto
-source /home/claude/projects/luckfox-yocto/sources/poky/oe-init-build-env build
+# One-time setup: clone this repo and poky side by side
+git clone https://github.com/OOHehir/luckfox-pico-yocto.git
+git clone -b scarthgap https://git.yoctoproject.org/poky
+
+# Each shell: source the Yocto env and enter the build dir
+cd luckfox-pico-yocto
+source ../poky/oe-init-build-env build
+
+# Add this layer to bblayers.conf (first build only)
+bitbake-layers add-layer ../meta-rockchip-rv1106
+
+# Set the machine and (optionally) WiFi credentials in conf/local.conf:
+#   MACHINE = "luckfox-pico-ultra-w"
+#   LUCKFOX_WIFI_SSID = "your-ssid"
+#   LUCKFOX_WIFI_PSK  = "your-psk"
+#   LUCKFOX_WIFI_COUNTRY = "IE"
+
 bitbake luckfox-image-minimal
 ```
 

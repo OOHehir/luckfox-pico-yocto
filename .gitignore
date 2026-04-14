@@ -1,7 +1,7 @@
 # Yocto build output
 build/
 
-# Yocto sstate cache and downloads (shared at /home/claude/projects/yocto-artifacts/)
+# Yocto sstate cache and downloads
 sstate-cache/
 downloads/
 
