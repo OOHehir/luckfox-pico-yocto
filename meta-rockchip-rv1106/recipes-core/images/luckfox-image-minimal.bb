@@ -28,6 +28,7 @@ IMAGE_INSTALL = " \
     luckfox-bt-init \
     luckfox-pico-status \
     luckfox-lvgl-demo \
+    rknn-demo \
 "
 
 WKS_FILE = "luckfox-rv1106-emmc.wks"
