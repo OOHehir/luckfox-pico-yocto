@@ -140,15 +140,32 @@ gunzip ${WIC}.gz
 ```
 
 The Pico Ultra W has no SD slot, so flashing is over USB to the onboard
-eMMC using `rkdeveloptool` with the board in maskrom mode:
+eMMC using `rkdeveloptool` with the board in maskrom mode. Two small
+helper blobs are also attached to the release — grab them first:
 
 ```bash
-# Put board in maskrom: short SARADC_IN0 to GND at power-on.
-rkdeveloptool ld                           # confirm "DevNo=1 Maskrom"
-rkdeveloptool db rk1106_ddr_924MHz_v1.09.bin   # from rkbin, first stage
-rkdeveloptool wl 0 ${WIC}                  # write whole image to sector 0
-rkdeveloptool rd                           # reset
+BASE=https://github.com/OOHehir/luckfox-pico-yocto/releases/latest/download
+curl -L -O ${BASE}/rv1106_ddr_924MHz_v1.15.bin
+curl -L -O ${BASE}/rv1106_usbplug_v1.09.bin
 ```
+
+Then enter maskrom (short SARADC_IN0 to GND at power-on on the Pico
+Ultra W) and run:
+
+```bash
+rkdeveloptool ld                             # confirm "DevNo=1 Maskrom"
+rkdeveloptool db rv1106_ddr_924MHz_v1.15.bin # DDR init, brings DRAM up
+rkdeveloptool ul rv1106_usbplug_v1.09.bin    # usbplug helper, handles eMMC writes
+rkdeveloptool wl 0 ${WIC}                    # write WIC to sector 0
+rkdeveloptool rd                             # reset the board
+```
+
+The whole flash takes ~20 seconds over USB 2.0 for the 287 MB WIC. Both
+helper blobs come from [rockchip-linux/rkbin](https://github.com/rockchip-linux/rkbin)
+(`bin/rv11/`) and are proprietary-but-redistributable Rockchip binaries;
+see `THIRD_PARTY_LICENSES.md`. `rkdeveloptool` itself is at
+[rockchip-linux/rkdeveloptool](https://github.com/rockchip-linux/rkdeveloptool)
+or packaged in many Linux distros.
 
 The WIC contains idbloader + u-boot + boot partition + ext4 rootfs in the
 layout described below. WiFi credentials are unset in the release image —
@@ -183,22 +200,18 @@ Output: `build/tmp-glibc/deploy/images/luckfox-pico-ultra-w/`
 
 ## Flashing a source build
 
-Same recipe as [Flash the prebuilt image](#flash-the-prebuilt-image-no-build-required) above, just point `rkdeveloptool` at the WIC your build produced:
+Same recipe as [Flash the prebuilt image](#flash-the-prebuilt-image-no-build-required) above, just point `rkdeveloptool` at the WIC your build produced. The `rv1106_ddr_*.bin` and `rv1106_usbplug_*.bin` helper blobs are already fetched by the `rkbin` recipe during the build:
 
 ```bash
-# Put the board in maskrom mode: short SARADC_IN0 to GND at power-on,
-# or hold the BOOT button (if your carrier exposes one) while plugging
-# in USB. `rkdeveloptool ld` should then report "DevNo=1 Maskrom".
-
+RKBIN=build/tmp-glibc/work/*/u-boot-rockchip-rv1106/*/rkbin/bin/rv11
 WIC=build/tmp-glibc/deploy/images/luckfox-pico-ultra-w/luckfox-image-minimal-luckfox-pico-ultra-w.rootfs.wic
 
-rkdeveloptool ld                              # confirm maskrom
-rkdeveloptool db rk1106_ddr_924MHz_v1.09.bin  # DDR init, from rkbin
-rkdeveloptool wl 0 ${WIC}                     # write whole WIC to sector 0
-rkdeveloptool rd                              # reset the board
+rkdeveloptool ld
+rkdeveloptool db ${RKBIN}/rv1106_ddr_924MHz_v1.15.bin
+rkdeveloptool ul ${RKBIN}/rv1106_usbplug_v1.09.bin
+rkdeveloptool wl 0 ${WIC}
+rkdeveloptool rd
 ```
-
-`rk1106_ddr_924MHz_v1.09.bin` is the DDR init blob shipped by [rockchip-linux/rkbin](https://github.com/rockchip-linux/rkbin) under `bin/rv11/`. rkdeveloptool itself is available at [rockchip-linux/rkdeveloptool](https://github.com/rockchip-linux/rkdeveloptool) or as `rkdeveloptool` in many Linux distros. The whole flash takes ~20 seconds for the 287 MB WIC on a reasonable USB 2.0 link.
 
 ## Boot Chain
 
