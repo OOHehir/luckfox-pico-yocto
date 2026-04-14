@@ -8,7 +8,7 @@
   - Adapter GND → Board GND
   - Do NOT connect VCC/3.3V — board is powered via pin header
   - 115200 baud, 8N1 (do not use 1500000 — adapter can't handle it)
-- A board with 4 relays connected via USB (see /home/claude/projects/usb_relay_controller)
+- A USB relay board with 4 relays, driven by a small host-side controller script
  - relay 1 (NO) shorts SARADC_IN0 to GND (maskrom entry) via 22 ohm resistor
  - relay 2 (NC) controls the USB power line
  - relay 3 (NC) Data +
