@@ -1,7 +1,8 @@
 # Yocto BSP for LuckFox Pico Ultra W (RV1106G3)
 
-Yocto (scarthgap) Board Support Package for the LuckFox Pico Ultra W,
-built around the Rockchip RV1106G3 SoC.
+Yocto BSP for the LuckFox Pico Ultra W (Rockchip RV1106G3) — builds a complete embedded Linux image with WiFi 6, NPU (0.5 TOPS), touchscreen display, and Bluetooth 5.2.
+
+**Key Technologies:** **Yocto** scarthgap | **Rockchip RV1106G3** (ARM Cortex-A7 @ 1.2 GHz) | **WiFi 6** + **Bluetooth 5.2** | **NPU** 0.5 TOPS | **LVGL** v9.2 | **Linux** 5.10 kernel
 
 ## Hardware
 
@@ -256,3 +257,7 @@ BootROM → idbloader.img (sector 64) → u-boot.img (8MiB) → sysboot extlinux
   Switched to SDK's librknnmrt.so v1.6.0.
 - **NPU API**: v1.6.0 runtime requires `rknn_create_mem` + `rknn_set_io_mem`
   instead of `rknn_inputs_set`.
+
+---
+
+Built by Owen O'Hehir — embedded Linux, IoT, Matter & Rust consulting at [electronicsconsult.com](https://electronicsconsult.com). Available for contract and consulting work.
