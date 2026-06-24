@@ -1,23 +1,45 @@
-
 # Dev setup
 
-- Luckfox Pico Ultra connected via USB
-- An ESP-PROG USB to serial adapter connected to get console output
-  - Adapter TX → Board pin 43 (RX)
-  - Adapter RX → Board pin 42 (TX)
-  - Adapter GND → Board GND
-  - Do NOT connect VCC/3.3V — board is powered via pin header
-  - 115200 baud, 8N1 (do not use 1500000 — adapter can't handle it)
-- A USB relay board with 4 relays, driven by a small host-side controller script
- - relay 1 (NO) shorts SARADC_IN0 to GND (maskrom entry) via 22 ohm resistor
- - relay 2 (NC) controls the USB power line
- - relay 3 (NC) Data +
- - relay 4 (NC) Data -
+## General
 
-**USB relay sequencing**
-— Cutting VBUS (relay 2) while D+/D- (relays 3/4)
-remain connected can back-power the target through the host's data-line
-drivers and the SoC's ESD clamp diodes, risking latch-up on the RV1106.
-Safe order: **power off** = disconnect D+/D- first, then VBUS;
-**power on** = connect VBUS first, then D+/D-. The relay controller's
-`usb_power_off()` / `usb_power_on()` helpers enforce this sequence.
+- LuckFox board powered via USB-C.
+
+## Serial setup
+
+- Console via a serial-to-USB adapter (e.g. RP2040 Debugprobe on Pico with CMSIS-DAP firmware, or ESP-PROG):
+  - Probe UART TX → Board pin 43 (RX)
+  - Probe UART RX → Board pin 42 (TX)
+  - Probe GND → Board GND
+  - Do **not** connect VCC/3.3V — the board is powered via its USB-C (relay rig).
+
+## Baudrate
+
+- Rockchip default is 1500000.
+- This image uses 115200 baud, 8N1 for the console.
+
+## USB relay sequencing for automated power cycling
+
+A USB relay board with 4 relays, driven by a small host-side controller script:
+
+- Relay 1 (NO) shorts SARADC_IN0 to GND (maskrom entry). Better yet, the CLK pin of eMMC.
+- Relay 2 (NC) controls the USB power line.
+- Relay 3 (NC) controls Data +.
+- Relay 4 (NC) controls Data -.
+
+### Note on power cycling
+
+Cutting VBUS (relay 2) while D+/D- (relays 3/4) remain connected can back-power
+the target through the host's data-line drivers and the SoC's ESD clamp diodes,
+risking latch-up on the RV1106.
+
+Safe order:
+
+- **Power off** — disconnect D+/D- first, then VBUS.
+- **Power on** — connect VBUS first, then D+/D-.
+
+The relay controller's `usb_power_off()` / `usb_power_on()` helpers enforce this sequence.
+
+## Notes
+
+- The RP2040 Debugprobe enumerates as a CDC ACM serial port at `/dev/ttyACM0` on the host.
+- The board can occasionally get wedged, where grounding SARADC_IN0 is insufficient. In this case, shorting the CLK pin of eMMC to GND is required. ([Ref](https://forums.luckfox.com/viewtopic.php?t=2018))
