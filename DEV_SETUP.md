@@ -7,10 +7,22 @@
 ## Serial setup
 
 - Console via a serial-to-USB adapter (e.g. RP2040 Debugprobe on Pico with CMSIS-DAP firmware, or ESP-PROG):
-  - Probe UART TX → Board pin 43 (RX)
-  - Probe UART RX → Board pin 42 (TX)
+  - Probe UART2 TX → Board pin 43 (RX)
+  - Probe UART2 RX → Board pin 42 (TX)
   - Probe GND → Board GND
   - Do **not** connect VCC/3.3V — the board is powered via its USB-C (relay rig).
+
+- An alternate (for example when SWD is required):
+  - Probe UART4 TX → Board pin 40 (RX)
+  - Probe UART4 RX → Board pin 41 (TX)
+  - Probe GND → Board GND
+  - Do **not** connect VCC/3.3V — the board is powered via its USB-C (relay rig).
+
+## SWD setup
+
+- If you need SWD the serial console (above) needs to be moved as there is overlap.
+  - Probe SWDIO → Board pin 43
+  - Probe SWCLK → Board pin 42
 
 ## Baudrate
 
