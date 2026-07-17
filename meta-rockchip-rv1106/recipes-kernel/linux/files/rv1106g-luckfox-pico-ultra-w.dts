@@ -76,6 +76,12 @@
 	status = "okay";
 };
 
+/**********OP-TEE**********/
+/* Enable the OP-TEE SMC driver. TZDRAM/SHMEM is reserved no-map in the ipc dtsi. */
+&optee {
+	status = "okay";
+};
+
 /**********SDIO-WIFI**********/
 &sdmmc {
 	max-frequency = <50000000>;

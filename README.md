@@ -44,7 +44,7 @@ Yocto BSP for the LuckFox Pico Ultra W (Rockchip RV1106G3) — builds a complete
 
 - [ ] Camera CSI (sc3336 / mis5001 already in DT, no hardware to test)
 - [ ] Hardware H.264 via `mpp_vcodec` (depends on camera)
-- [ ] OP-TEE secure-world TA (rkbin + U-Boot FIT ship TEE but userspace doesn't talk to it yet)
+- [ ] OP-TEE user-space TA client (`tee-supplicant` / secure storage): the kernel OP-TEE driver and `/dev/tee0` are up, no supplicant or TA is shipped yet
 - [ ] Watchdog daemon feeding `/dev/watchdog`
 - [ ] Thermal trip points / thermal-governed NPU throttling
 - [ ] USB device-mode gadget profiles (CDC-NCM + CDC-ACM composite) — scoped, skipped because existing serial + network + flashing paths already work
@@ -179,7 +179,9 @@ after first boot, or rebuild from source with `LUCKFOX_WIFI_*` set in
 ```bash
 # One-time setup: clone this repo and poky side by side
 git clone https://github.com/OOHehir/luckfox-pico-yocto.git
-git clone -b scarthgap https://git.yoctoproject.org/poky
+# Pinned to the yocto-5.0.17 point release for a reproducible, CVE-known baseline.
+# (Use `-b scarthgap` instead to track the branch for rolling fixes.)
+git clone -b yocto-5.0.17 https://git.yoctoproject.org/poky
 
 # Each shell: source the Yocto env and enter the build dir
 cd luckfox-pico-yocto
@@ -220,6 +222,50 @@ rkdeveloptool rd
 BootROM → idbloader.img (sector 64) → u-boot.img (8MiB) → sysboot extlinux.conf → Linux
 ```
 
+## Secure world (OP-TEE)
+
+The secure world is **source-built OP-TEE from upstream mainline**, not the
+Rockchip binary blob. The RV1106 `plat-rockchip` flavour (`PLATFORM=rockchip-rv1106`,
+`PLATFORM_FLAVOR=rv1106`) was upstreamed into `OP-TEE/optee_os` and is pinned at
+`SRCREV ed18ba2` (`4.10.0+git`) by
+`meta-rockchip-rv1106/recipes-security/optee/optee-os-rv1106_git.bb`. It builds out of
+the box (fetches `optee_os` from trustedfirmware), and the U-Boot recipe consumes the
+resulting `tee.bin` in its FIT instead of the proprietary `rv1106_tee_ta_v1.13.bin`.
+
+RV1106G3 is a single-core Cortex-A7 with no ARM Trusted Firmware, so OP-TEE runs as the
+secure monitor and provides the ARM32 PSCI back end. Running Linux under it needs a
+matched boot chain, all handled by the recipes:
+
+- **U-Boot SPL FIT** packs the OP-TEE image (`CONFIG_SPL_OPTEE=y`) as the headerless
+  `tee-raw.bin` at `CFG_TZDRAM_START 0x03d00000`, with the control DTB at `0x08000000`
+  and the DTB-appended `u-boot-dtb.bin` as the non-secure payload.
+- **OP-TEE** is built with `CFG_DT_ADDR=0x08000000` so it reads the FDT from where the
+  SPL actually loads it (the Rockchip SPL otherwise passes a bogus pointer inside TZDRAM
+  and OP-TEE external-aborts).
+- **The kernel** is built non-secure (`rv1106-optee.cfg`: `CONFIG_OPTEE`/`TEE`/`PSCI` on,
+  `FIQ_DEBUGGER_FIQ_GLUE` off, `FIQ_DEBUGGER_TRUST_ZONE` on), the `linaro,optee-tz`
+  firmware node is enabled, and TZDRAM+SHMEM (`0x03d00000 + 0x01100000`) is reserved
+  `no-map` in the device tree.
+
+`rkbin` now supplies only the DDR init / SPL / usbplug blobs (proprietary, no upstream
+replacement); the secure world is no longer sourced from it.
+
+**Hardware-validated on the Luckfox Pico Ultra (RV1106G3).** The shipped WIC self-boots
+end to end: SPL verifies `optee@0x03d00000`, OP-TEE runs and hands off to non-secure
+U-Boot → Linux, and the kernel OP-TEE driver comes up against the source build:
+
+```
+## Checking optee 0x03d00000 ... OK  →  Jumping to U-Boot(0x03d00000)
+optee: revision 4.10 (ed18ba2d)
+optee: dynamic shared memory is enabled
+optee: initialized driver
+luckfox-pico login:            # /dev/tee0 + /dev/teepriv0 present
+```
+
+The upstream `plat-rockchip` rv1106 port additionally passes the OP-TEE `xtest -l 0`
+Internal-Core-API conformance suite (35634 / 35636 subtests; the 2 are `regression_1039`
+"subkey verification", a test-harness TA-packaging detail, not a port fault).
+
 ## Partition Layout (WIC)
 
 | Offset | Content |
@@ -233,14 +279,20 @@ BootROM → idbloader.img (sector 64) → u-boot.img (8MiB) → sysboot extlinux
 
 | Component | Repository | Branch | Commit |
 |-----------|-----------|--------|--------|
-| rkbin | rockchip-linux/rkbin | master | `74213af` |
+| rkbin (DDR/SPL/usbplug) | rockchip-linux/rkbin | master | `74213af` |
+| OP-TEE OS | OP-TEE/optee_os | master | `ed18ba2` (RV1106 flavour, post-4.10.0) |
 | Kernel | LuckfoxTECH/luckfox-pico | main | `824b817` (SDK 5.10.160) |
 | U-Boot | rockchip-linux/u-boot | next-dev | `b14196e` |
 | RKNN Runtime | LuckfoxTECH/luckfox-pico | main | librknnmrt.so v1.6.0 |
-| Poky | yoctoproject/poky | scarthgap | `7d50718` |
+| Poky | yoctoproject/poky | yocto-5.0.17 | `1e80998` |
 
 ## Key Fixes Applied
 
+- **OP-TEE from upstream source**: the secure-world `tee.bin` is built from
+  `OP-TEE/optee_os` (`PLATFORM=rockchip-rv1106`, upstreamed RV1106 flavour)
+  instead of the proprietary `rv1106_tee_ta` rkbin blob. BSD-2-Clause, auditable,
+  and loads at `0x03d00000` to match the vendor U-Boot FIT. rkbin now supplies
+  only the DDR init / SPL / usbplug blobs, which have no upstream replacement.
 - **Bridge MCU reset release in U-Boot**: The 720x720 adapter's WCH
   CH32V003F4 MCU reset line is GPIO0_A1. Release it via `gpio set 1 1`
   in `board_late_init()` — requires `CONFIG_LUCKFOX_EXECUTE_CMD` and
@@ -257,6 +309,58 @@ BootROM → idbloader.img (sector 64) → u-boot.img (8MiB) → sysboot extlinux
   Switched to SDK's librknnmrt.so v1.6.0.
 - **NPU API**: v1.6.0 runtime requires `rknn_create_mem` + `rknn_set_io_mem`
   instead of `rknn_inputs_set`.
+
+## Security & EU Cyber Resilience Act (CRA)
+
+> Not legal advice. CRA conformity is assessed for a **finished product** and is
+> the manufacturer's obligation; a BSP is one component of that. This section
+> describes which building blocks here support the CRA essential requirements
+> (Annex I) and the vulnerability-handling duties, and what is left to the
+> integrator.
+
+The EU Cyber Resilience Act (Regulation (EU) 2024/2847) sets essential
+cybersecurity requirements for products with digital elements, phasing in through
+2026–2027 (vulnerability-reporting duties from Sept 2026, the main requirements
+from Dec 2027).
+
+**What source-built OP-TEE changes.** The biggest CRA weak point in the earlier
+boot chain was that the secure world was a proprietary Rockchip blob
+(`rv1106_tee_ta_v1.13.bin`): unauditable, unpatchable, and impossible to attest to
+a specific upstream version. The secure world is now **built from upstream
+`OP-TEE/optee_os` at a pinned SRCREV** (see [Secure world](#secure-world-op-tee)),
+making the root-of-trust component:
+
+- **Auditable**: full source, reproducible from the pinned commit.
+- **Patchable**: upstream OP-TEE security fixes are pulled by bumping the SRCREV,
+  supporting the "delivered without known exploitable vulnerabilities" and "timely
+  security updates" requirements.
+- **Attestable in an SBOM**, with a real license (BSD-2-Clause) rather than an
+  opaque redistributable binary.
+
+**Building blocks in this BSP that support CRA:**
+
+- **Reproducible, pinned supply chain**: every component (kernel, U-Boot, OP-TEE,
+  out-of-tree drivers) is pinned by SRCREV/commit; see [Source Versions](#source-versions).
+  The poky baseline is pinned to the `yocto-5.0.17` Scarthgap point release for a
+  known CVE posture.
+- **SBOM**: the Yocto build can emit an SPDX SBOM (`INHERIT += "create-spdx"`), and
+  `THIRD_PARTY_LICENSES.md` enumerates the redistributed components and their licenses.
+- **CVE monitoring**: pinned upstreams plus Yocto's `cve-check`
+  (`INHERIT += "cve-check"`, not enabled by default here) give per-build CVE
+  reporting across the image, now including the secure world.
+
+**Still the integrator's responsibility. Do NOT ship the default image as-is:**
+
+- **Remove `debug-tweaks`.** `luckfox-image-minimal` sets
+  `EXTRA_IMAGE_FEATURES += "debug-tweaks"` (blank root password, permissive access).
+  That is a development convenience and violates "secure by default"; drop it and
+  set real credentials/hardening for production.
+- **Provision keys and lock the boot chain.** A signed FIT / verified boot, the
+  BootROM eFuse burn, and an authenticated update mechanism are out of scope for
+  this BSP.
+- **Establish a vulnerability-handling process.** Coordinated disclosure,
+  security-update delivery, and keeping the SBOM/CVE posture current are ongoing
+  manufacturer duties, not one-time build settings.
 
 ---
 

@@ -32,9 +32,9 @@ deferred) see `README.md` — this file only tracks what's *next*.
    `CONFIG_WATCHDOG_NOWAYOUT=y` makes the board self-recover from
    a runaway kernel thread.
 
-5. **OP-TEE secure world.** `rv1106_tee_ta_v1.13.bin` is already in
-   the FIT. Could host a secure key store, verified-boot anchor, or
-   a crypto-offload TA.
+5. **OP-TEE user space.** Secure world runs and `/dev/tee0` is up.
+   What's left is `optee-client`/`tee-supplicant` plus a first TA:
+   a secure key store, verified-boot anchor, or crypto-offload TA.
 
 6. **Thermal / cpufreq.** Chip is fixed at 1104 MHz with no scaling.
    A simple 85 °C trip that throttles the NPU would be prudent for
@@ -67,7 +67,5 @@ deferred) see `README.md` — this file only tracks what's *next*.
 If the BSP gets traction:
 
 - Upstream `meta-rockchip-rv1106` to the OpenEmbedded Layer Index.
-- Open a PR on the LuckfoxTECH SDK README pointing here as a Yocto
-  alternative.
 - Ping linux-rockchip with the GCC 13 `-Wdangling-pointer` fix in
   `rwnx_rx.c` — they will hit it when they upgrade their build host.

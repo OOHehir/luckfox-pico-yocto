@@ -108,6 +108,13 @@
 		mmc_ecsd: mmc@3f000 {
 			reg = <0x3f000 0x00001000>;
 		};
+
+		/* OP-TEE TZDRAM (16M @ 0x03d00000) + 1M SHMEM, no-map so the non-secure
+		 * kernel never allocates inside it (else it hangs on the first REGISTER_SHM). */
+		optee@3d00000 {
+			reg = <0x03d00000 0x01100000>;
+			no-map;
+		};
 	};
 
 	acodec_sound: acodec-sound {

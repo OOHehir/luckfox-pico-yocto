@@ -15,8 +15,9 @@ built image, see the SPDX SBOM produced at build time:
 |---|---|---|
 | Linux kernel 5.10.160 | `LuckfoxTECH/luckfox-pico` (Rockchip SDK fork) | GPL-2.0 |
 | U-Boot | `rockchip-linux/u-boot` (next-dev) | GPL-2.0+ |
-| rkbin (DDR init, SPL loader, BL31, OP-TEE, bootloader blobs) | `rockchip-linux/rkbin` | Proprietary — redistributable per rkbin `LICENSE` |
-| Poky / OpenEmbedded-Core (scarthgap) | `yoctoproject/poky` | MIT (build system); individual recipes carry their own licenses |
+| rkbin (DDR init, SPL loader, usbplug blobs) | `rockchip-linux/rkbin` | Proprietary — redistributable per rkbin `LICENSE` |
+| OP-TEE OS (secure-world `tee.bin`, RV1106 flavour) | `OP-TEE/optee_os` | BSD-2-Clause |
+| Poky / OpenEmbedded-Core (scarthgap `yocto-5.0.17`) | `yoctoproject/poky` | MIT (build system); individual recipes carry their own licenses |
 | LVGL v9.2 | `lvgl/lvgl` | MIT |
 | BusyBox, lighttpd, BlueZ, wpa_supplicant, systemd, etc. | Yocto scarthgap | GPL-2.0 / LGPL / BSD / MIT (per-package, see SBOM) |
 
@@ -46,7 +47,7 @@ The following components are redistributed as binary-only blobs under the
 redistribution terms of their respective upstreams. They are **not** MIT
 licensed and are not covered by this repository's `LICENSE`:
 
-- `rkbin/` blobs (DDR init, TF-A, OP-TEE pager)
+- `rkbin/` blobs (DDR init, SPL, usbplug)
 - AIC8800DC firmware (`*.bin` under `aic8800dc_fw/`)
 - `librknnmrt.so` NPU runtime
 - `.rknn` model files

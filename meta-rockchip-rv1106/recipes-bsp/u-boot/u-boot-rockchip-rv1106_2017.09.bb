@@ -1,15 +1,17 @@
 SUMMARY = "Rockchip U-Boot for RV1106"
 DESCRIPTION = "Rockchip's vendor U-Boot 2017.09 fork for the RV1106 SoC family. \
 Produces idbloader.img (DDR init + SPL) and uboot.img (U-Boot + OP-TEE FIT) \
-for the Rockchip boot chain."
+for the Rockchip boot chain. The OP-TEE payload is built from upstream source \
+by optee-os-rv1106, not the rkbin blob."
 HOMEPAGE = "https://github.com/rockchip-linux/u-boot"
 
 LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://Licenses/gpl-2.0.txt;md5=b234ee4d69f5fce4486a80fdaf4a4263"
 
-DEPENDS += "bc-native dtc-native python3-native"
+DEPENDS += "bc-native dtc-native python3-native optee-os-rv1106"
 
-# U-Boot source (Rockchip vendor fork)
+# rkbin is still fetched for the DDR init + SPL blobs (idbloader.img); the OP-TEE
+# payload comes from optee-os-rv1106.
 SRCREV = "b14196eade471bbc000c368f8555f2a2a1ecc17d"
 SRCREV_rkbin = "74213af1e952c4683d2e35952507133b61394862"
 
@@ -19,6 +21,7 @@ SRC_URI = " \
     file://rv1106-distroboot.config \
     file://rv1106-display.config \
     file://rv1106-luckfox-rgb-reset.config \
+    file://rv1106-optee.config \
     file://rv1106-luckfox-display.dtsi \
     file://0001-rv1106-add-distro-boot-fallback.patch \
 "
@@ -32,10 +35,9 @@ COMPATIBLE_MACHINE = "(luckfox-pico-ultra-w)"
 
 UBOOT_MACHINE ?= "rv1106_defconfig"
 
-# rkbin blob paths for RV1106
+# rkbin blob paths for RV1106 (DDR init + SPL only; OP-TEE is built from source)
 RKBIN_DDR = "bin/rv11/rv1106_ddr_924MHz_v1.15.bin"
 RKBIN_SPL = "bin/rv11/rv1106_spl_v1.02.bin"
-RKBIN_TEE = "bin/rv11/rv1106_tee_ta_v1.13.bin"
 
 inherit deploy
 
@@ -104,10 +106,29 @@ do_configure() {
             ${S}/arch/arm/dts/rv1106-evb.dts
     fi
 
+    # FIT OP-TEE load address. The generator defaults to 0x08400000 (the rkbin blob);
+    # upstream OP-TEE is linked for CFG_TZDRAM_START 0x03d00000 (DRAM_BASE is 0 here).
+    sed -i 's/TEE_OFFSET=0x08400000/TEE_OFFSET=0x03d00000/' \
+        ${S}/arch/arm/mach-rockchip/fit_args.sh
+
+    # FIT control-DTB load address. gen_fdt_node emits no load addr, so the SPL places
+    # the DTB right after U-Boot and collides with it. Pin it to 0x08000000 to match
+    # OP-TEE's CFG_DT_ADDR (where OP-TEE reads boot_arg_fdt). Guard keeps it idempotent.
+    if ! grep -q "load = <0x08000000>" ${S}/arch/arm/mach-rockchip/fit_nodes.sh; then
+        sed -i '/u-boot.dtb/a\            load = <0x08000000>;' \
+            ${S}/arch/arm/mach-rockchip/fit_nodes.sh
+    fi
+
+    # NS U-Boot is CONFIG_OF_SEPARATE=y and finds its control DTB appended to the image.
+    # Pack u-boot-dtb.bin, not the generator's default DTB-less u-boot-nodtb.bin (which
+    # boots to "No valid device tree binary found").
+    sed -i 's/UBOOT="u-boot-nodtb.bin"/UBOOT="u-boot-dtb.bin"/' \
+        ${S}/arch/arm/mach-rockchip/fit_nodes.sh
+
     oe_runmake ${UBOOT_MACHINE}
 
     # Apply config fragments
-    for cfg in ${WORKDIR}/rv1106-distroboot.config ${WORKDIR}/rv1106-display.config ${WORKDIR}/rv1106-luckfox-rgb-reset.config; do
+    for cfg in ${WORKDIR}/rv1106-distroboot.config ${WORKDIR}/rv1106-display.config ${WORKDIR}/rv1106-luckfox-rgb-reset.config ${WORKDIR}/rv1106-optee.config; do
         if [ -f "$cfg" ]; then
             ${S}/scripts/kconfig/merge_config.sh -m -O ${B} ${B}/.config "$cfg"
         fi
@@ -118,12 +139,21 @@ do_configure() {
 }
 
 do_compile() {
-    # Copy OP-TEE blob — U-Boot's FIT generator expects tee.bin in source tree
-    cp ${WORKDIR}/rkbin/${RKBIN_TEE} ${S}/tee.bin
+    # The FIT generator incbin's a file named tee.bin. Feed it the headerless
+    # tee-raw.bin: the SPL FIT loader jumps to the load address, so the OPTE header on
+    # the plain tee.bin would run as code and hang.
+    cp ${RECIPE_SYSROOT}${datadir}/optee/tee-raw.bin ${S}/tee.bin
+
+    export COMPRESSION="none"
 
     oe_runmake
 
-    # If the Makefile didn't create idbloader.img, build it manually
+    # `all` builds u-boot.img via mkimage '-f auto' (U-Boot + fdt, no OP-TEE). The
+    # OP-TEE-inclusive FIT is the separate u-boot.itb target; do_deploy ships it as
+    # u-boot.img.
+    oe_runmake u-boot.itb
+
+    # Build idbloader.img manually if the Makefile didn't.
     if [ ! -f "${B}/idbloader.img" ]; then
         ${B}/tools/mkimage -n rv1106 -T rksd \
             -d ${WORKDIR}/rkbin/${RKBIN_DDR}:${WORKDIR}/rkbin/${RKBIN_SPL} \
@@ -138,7 +168,12 @@ do_deploy() {
         install -m 0644 ${B}/idbloader.img ${DEPLOYDIR}/idbloader.img
     fi
 
-    if [ -f "${B}/u-boot.img" ]; then
+    # Ship the OP-TEE-inclusive FIT (u-boot.itb) as u-boot.img so the WIC's
+    # u-boot partition boots the secure world. Fall back to u-boot.img if the
+    # .itb wasn't produced.
+    if [ -f "${B}/u-boot.itb" ]; then
+        install -m 0644 ${B}/u-boot.itb ${DEPLOYDIR}/u-boot.img
+    elif [ -f "${B}/u-boot.img" ]; then
         install -m 0644 ${B}/u-boot.img ${DEPLOYDIR}/u-boot.img
     fi
 

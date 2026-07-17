@@ -17,6 +17,7 @@ SRC_URI = " \
     file://rv1106-luckfox-pico-ultra-ipc.dtsi \
     file://ext4-builtin.cfg \
     file://rv1106-emmc.cfg \
+    file://rv1106-optee.cfg \
     file://logo_linux_clut224.ppm \
 "
 
